@@ -113,7 +113,8 @@ async function createTable(userId) {
                 location VARCHAR(100),
                 price VARCHAR(10),
                 colors SET('W', 'U', 'B', 'R', 'G', 'C') NOT NULL,
-                rarity CHAR(1) NOT NULL
+                rarity CHAR(1) NOT NULL,
+                id VARCHAR(128) NOT NULL
               )`
         );
     } catch (err) {
