@@ -65,10 +65,13 @@ module.exports = {
                 interaction.editReply({ embeds: [embed], components: [buttons] });
 
                 setTimeout(() => {
-                    console.log(interaction);
-                    const newEmbed = createTimeoutDeleteEmbed();
-                    const newButtons = createDisabledConfirmationButtons(user.id);
-                    interaction.editReply({ embeds: [newEmbed], components: [newButtons] });
+                    interaction.fetchReply().then((reply) => {
+                        if (reply.embeds[0].data.title === 'Are you sure?') {
+                            const newEmbed = createTimeoutDeleteEmbed();
+                            const newButtons = createDisabledConfirmationButtons(user.id);
+                            interaction.editReply({ embeds: [newEmbed], components: [newButtons] });
+                        }
+                    });
                 }, 15000);
             }
         }
