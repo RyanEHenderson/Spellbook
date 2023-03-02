@@ -63,6 +63,13 @@ module.exports = {
                 const embed = createDeleteEmbed();
                 const buttons = createConfirmationButtons(user.id);
                 interaction.editReply({ embeds: [embed], components: [buttons] });
+
+                setTimeout(() => {
+                    console.log(interaction);
+                    const newEmbed = createTimeoutDeleteEmbed();
+                    const newButtons = createDisabledConfirmationButtons(user.id);
+                    interaction.editReply({ embeds: [newEmbed], components: [newButtons] });
+                }, 15000);
             }
         }
     },
@@ -93,7 +100,6 @@ async function hasTable(userId) {
 async function createTable(userId) {
     let conn;
     try {
-        console.log('making table');
         conn = await pool.getConnection();
         const newTable = await conn.query(
             `CREATE TABLE IF NOT EXISTS u${userId} (
@@ -107,7 +113,6 @@ async function createTable(userId) {
                 rarity CHAR(1) NOT NULL
               )`
         );
-        console.log(newTable);
     } catch (err) {
         throw err;
     } finally {
@@ -136,5 +141,29 @@ function createDeleteEmbed() {
     const embed = new EmbedBuilder()
         .setTitle('Are you sure?')
         .setDescription('Are you sure you want to delete your collection? This is permanent and cannot be undone.');
+    return embed;
+}
+
+function createDisabledConfirmationButtons(userId) {
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId(`confirm${userId}`)
+                .setLabel('Confirm')
+                .setDisabled(true)
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`cancel${userId}`)
+                .setLabel('Cancel')
+                .setDisabled(true)
+                .setStyle(ButtonStyle.Danger)
+        );
+    return row;
+}
+
+function createTimeoutDeleteEmbed() {
+    const embed = new EmbedBuilder()
+        .setTitle('Deletion timed out')
+        .setDescription('Collection deletion has timed out');
     return embed;
 }

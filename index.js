@@ -3,7 +3,6 @@ const path = require('path');
 const {
     Client,
     Collection,
-    Events,
     GatewayIntentBits
 } = require('discord.js');
 
