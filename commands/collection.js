@@ -187,48 +187,42 @@ module.exports = {
                     }
                     if (cards.length === 1) {
                         const card = cards[0];
-                        if (card.name !== cardName) {
-                            const embed = createNameVerificationEmbed(card.name, cardName);
-                            const buttons = createConfirmationButtons(user.id);
-                            interaction.editReply({ embeds: [embed], components: [buttons] });
+
+                        const hasFoil = card.hasFoil;
+                        const hasNonFoil = card.hasNonFoil;
+                        if (isFoil && !hasFoil) {
+                            interaction.editReply('Foil card was selected, but this card does not have a foil version');
+                        } else if (!isFoil && !hasNonFoil) {
+                            interaction.editReply('Non-foil card was selected, but this card only exists in foil');
                         } else {
-                            const hasFoil = card.hasFoil;
-                            const hasNonFoil = card.hasNonFoil;
-                            if (isFoil && !hasFoil) {
-                                interaction.editReply('Foil card was selected, but this card does not have a foil version');
-                            } else if (!isFoil && !hasNonFoil) {
-                                interaction.editReply('Non-foil card was selected, but this card only exists in foil');
-                            } else {
-                                if (subcommand === 'add') {
-                                    addCard(user.id, card.uuid, isFoil, count, location).then(() => {
-                                        interaction.editReply('Card added');
-                                    }).catch((err) => {
-                                        interaction.editReply('An error occurred adding the card');
-                                        console.log(err);
-                                    });
-                                } else if (subcommand === 'remove') {
-                                    getCardsInCollection(user.id, card.uuid, isFoil, location).then((cards) => {
-                                        if (cards.length === 0) {
-                                            interaction.editReply('You do not have this card in your collection');
-                                        } else if (cards.length > 1) {
-                                            interaction.editReply('Multiple copies of the same card, this shouldn\'t be possible');
+                            if (subcommand === 'add') {
+                                addCard(user.id, card.uuid, isFoil, count, location).then(() => {
+                                    interaction.editReply('Card added');
+                                }).catch((err) => {
+                                    interaction.editReply('An error occurred adding the card');
+                                    console.log(err);
+                                });
+                            } else if (subcommand === 'remove') {
+                                getCardsInCollection(user.id, card.uuid, isFoil, location).then((cards) => {
+                                    if (cards.length === 0) {
+                                        interaction.editReply('You do not have this card in your collection');
+                                    } else if (cards.length > 1) {
+                                        interaction.editReply('Multiple copies of the same card, this shouldn\'t be possible');
+                                    } else {
+                                        if (cards[0].count < count) {
+                                            interaction.editReply(`You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`);
                                         } else {
-                                            if (cards[0].count < count) {
-                                                interaction.editReply(`You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`);
-                                            } else {
-                                                removeCard(user.id, card.uuid, isFoil, cards[0].count, count, location).then(() => {
-                                                    interaction.editReply('Card removed');
-                                                });
-                                            }
+                                            removeCard(user.id, card.uuid, isFoil, cards[0].count, count, location).then(() => {
+                                                interaction.editReply('Card removed');
+                                            });
                                         }
-                                    }).catch((err) => {
-                                        interaction.editReply('An error occurred removing this card');
-                                        console.log(err);
-                                    })
-                                }
+                                    }
+                                }).catch((err) => {
+                                    interaction.editReply('An error occurred removing this card');
+                                    console.log(err);
+                                })
                             }
                         }
-                        return;
                     }
 
                 }).catch((err) => {
@@ -322,9 +316,9 @@ async function getCard(cardName, setCode, token) {
     try {
         conn = await pool.getConnection();
         if (token) {
-            card = await conn.query(`SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`);
+            card = await conn.query(`SELECT * FROM tokens WHERE (name='${cardName}') AND (setCode='${setCode}');`);
         } else {
-            card = await conn.query(`SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`);
+            card = await conn.query(`SELECT * FROM cards WHERE (name='${cardName}') AND (setCode='${setCode}');`);
         }
     } catch (err) {
         throw err;
@@ -452,16 +446,5 @@ function createTimeoutDeleteEmbed() {
     const embed = new EmbedBuilder()
         .setTitle('Deletion timed out')
         .setDescription('Collection deletion has timed out');
-    return embed;
-}
-
-function createNameVerificationEmbed(foundName, givenName) {
-    const embed = new EmbedBuilder()
-        .setTitle('Name Discrepancy')
-        .setDescription('Found a card with a similar name, is this correct?')
-        .addFields(
-            { name: 'Provided Name', value: givenName },
-            { name: 'Found Name', value: foundName }
-        );
     return embed;
 }
