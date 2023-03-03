@@ -206,10 +206,31 @@ module.exports = {
                                         interaction.editReply('An error occurred adding the card');
                                         console.log(err);
                                     });
+                                } else if (subcommand === 'remove') {
+                                    getCardsInCollection(user.id, card.uuid, isFoil, location).then((cards) => {
+                                        if (cards.length === 0) {
+                                            interaction.editReply('You do not have this card in your collection');
+                                        } else if (cards.length > 1) {
+                                            interaction.editReply('Multiple copies of the same card, this shouldn\'t be possible');
+                                        } else {
+                                            if (cards[0].count < count) {
+                                                interaction.editReply(`You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`);
+                                            } else {
+                                                removeCard(user.id, card.uuid, isFoil, cards[0].count, count, location).then(() => {
+                                                    interaction.editReply('Card removed');
+                                                });
+                                            }
+                                        }
+                                    }).catch((err) => {
+                                        interaction.editReply('An error occurred removing this card');
+                                        console.log(err);
+                                    })
                                 }
                             }
                         }
+                        return;
                     }
+
                 }).catch((err) => {
                     interaction.editReply('An error occurred finding that card');
                     console.log(err);
@@ -317,7 +338,6 @@ async function getCard(cardName, setCode, token) {
 
 async function addCard(userId, uuid, foil, count, location) {
     let existing = await getCardsInCollection(userId, uuid, foil, location);
-    console.log(existing);
     if (existing.length === 1) {
         count = existing[0].count + count;
     }
@@ -327,12 +347,38 @@ async function addCard(userId, uuid, foil, count, location) {
         conn = await pool.getConnection();
         if (existing.length === 1) {
             if (location === null) {
-                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL)`);
+                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL);`);
             } else {
-                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}')`);
+                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}');`);
             }
         } else {
             added = await conn.query(`INSERT INTO u${userId} VALUES (?, ?, ?, ?);`, [uuid, foil, count, location]);
+        }
+    } catch (err) {
+        throw err;
+    } finally {
+        if (conn) {
+            return conn.end();
+        }
+    }
+}
+
+async function removeCard(userId, uuid, foil, existingCount, count, location) {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        if (existingCount === count) {
+            if (location === null) {
+                removed = await conn.query(`DELETE FROM u${userId} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL);`);
+            } else {
+                removed = await conn.query(`DELETE FROM u${userId} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location});`);
+            }
+        } else {
+            if (location === null) {
+                added = await conn.query(`UPDATE u${userId} SET count=${(existingCount - count)} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL);`);
+            } else {
+                added = await conn.query(`UPDATE u${userId} SET count=${(existingCount - count)} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}');`);
+            }
         }
     } catch (err) {
         throw err;
