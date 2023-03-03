@@ -1,5 +1,10 @@
 {
-    "discordToken": "token",
-    "guildId": "guild",
-    "clientId": "botUser"
+    "discordToken": "",
+    "guildId": "",
+    "clientId": "",
+    "dbAddress": "",
+    "dbPort": "",
+    "dbUser": "",
+    "dbPassword": "",
+    "dbDatabase": ""
 }
