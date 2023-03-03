@@ -1,10 +1,10 @@
-const { 
+const {
     SlashCommandBuilder,
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle
- } = require('discord.js');
+} = require('discord.js');
 const mariadb = require('mariadb');
 
 const {
@@ -50,28 +50,28 @@ module.exports = {
                             option
                                 .setName('name')
                                 .setDescription('The name of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addStringOption(option =>
                             option
                                 .setName('set')
                                 .setDescription('The set code of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addBooleanOption(option =>
                             option
                                 .setName('foil')
-                                .setDescription('Whether or not the card is foil (default false)')    
+                                .setDescription('Whether or not the card is foil (default false)')
                         )
                         .addBooleanOption(option =>
                             option
                                 .setName('token')
-                                .setDescription('Whether the card is a token (default false)')    
+                                .setDescription('Whether the card is a token (default false)')
                         )
                         .addIntegerOption(option =>
                             option
                                 .setName('count')
-                                .setDescription('How many of the card to add (default 1)')    
+                                .setDescription('How many of the card to add (default 1)')
                         )
                         .addStringOption(option =>
                             option
@@ -87,28 +87,28 @@ module.exports = {
                             option
                                 .setName('name')
                                 .setDescription('The name of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addStringOption(option =>
                             option
                                 .setName('set')
                                 .setDescription('The set code of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addBooleanOption(option =>
                             option
                                 .setName('foil')
-                                .setDescription('Whether or not the card is foil (default false)')    
+                                .setDescription('Whether or not the card is foil (default false)')
                         )
                         .addBooleanOption(option =>
                             option
                                 .setName('token')
-                                .setDescription('Whether the card is a token (default false)')    
+                                .setDescription('Whether the card is a token (default false)')
                         )
                         .addIntegerOption(option =>
                             option
                                 .setName('count')
-                                .setDescription('How many of the card to remove (default 1)')    
+                                .setDescription('How many of the card to remove (default 1)')
                         )
                         .addStringOption(option =>
                             option
@@ -124,13 +124,13 @@ module.exports = {
                             option
                                 .setName('name')
                                 .setDescription('The name of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addStringOption(option =>
                             option
                                 .setName('set')
                                 .setDescription('The set code of the card')
-                                .setRequired(true)    
+                                .setRequired(true)
                         )
                         .addStringOption(option =>
                             option
@@ -146,17 +146,17 @@ module.exports = {
                         .addBooleanOption(option =>
                             option
                                 .setName('foil')
-                                .setDescription('Whether or not the card is foil (default false)')    
+                                .setDescription('Whether or not the card is foil (default false)')
                         )
                         .addBooleanOption(option =>
                             option
                                 .setName('token')
-                                .setDescription('Whether the card is a token (default false)')    
+                                .setDescription('Whether the card is a token (default false)')
                         )
                         .addIntegerOption(option =>
                             option
                                 .setName('count')
-                                .setDescription('How many of the card to move (default 1)')    
+                                .setDescription('How many of the card to move (default 1)')
                         )
                 )
         ),
@@ -193,7 +193,7 @@ module.exports = {
                             interaction.editReply({ embeds: [embed], components: [buttons] });
                         } else {
                             const hasFoil = card.hasFoil;
-                            const hasNonFoil =  card.hasNonFoil;
+                            const hasNonFoil = card.hasNonFoil;
                             if (isFoil && !hasFoil) {
                                 interaction.editReply('Foil card was selected, but this card does not have a foil version');
                             } else if (!isFoil && !hasNonFoil) {
@@ -234,7 +234,7 @@ module.exports = {
                     const embed = createDeleteEmbed();
                     const buttons = createConfirmationButtons(user.id);
                     interaction.editReply({ embeds: [embed], components: [buttons] });
-    
+
                     setTimeout(() => {
                         interaction.fetchReply().then((reply) => {
                             if (reply.embeds[0].data.title === 'Are you sure?') {
@@ -305,7 +305,6 @@ async function getCard(cardName, setCode, token) {
         } else {
             card = await conn.query(`SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`);
         }
-        
     } catch (err) {
         throw err;
     } finally {
@@ -333,7 +332,7 @@ async function addCard(userId, uuid, foil, count, location) {
                 added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}')`);
             }
         } else {
-            added = await conn.query(`INSERT INTO u${userId} VALUES (?, ?, ?, ?);`, [uuid,  foil, count, location]);
+            added = await conn.query(`INSERT INTO u${userId} VALUES (?, ?, ?, ?);`, [uuid, foil, count, location]);
         }
     } catch (err) {
         throw err;
