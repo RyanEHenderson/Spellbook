@@ -181,7 +181,6 @@ module.exports = {
             if (subcommand === 'add' || subcommand === 'remove') {
                 const location = interaction.options.getString('location');
                 getCard(cardName, cardSet, isToken).then((cards) => {
-                    console.log(cards);
                     if (cards.length === 0) {
                         interaction.editReply(`Could not find a card with name \`${cardName}\` in set \`${cardSet}\``);
                         return;
@@ -256,7 +255,7 @@ async function hasTable(userId) {
     let exists;
     try {
         conn = await pool.getConnection();
-        const tables = await conn.query(`SHOW TABLES LIKE 'u${userId}'`);
+        const tables = await conn.query(`SHOW TABLES LIKE 'u${userId}';`);
 
         if (tables.length === 0) {
             exists = false;
@@ -285,7 +284,7 @@ async function createTable(userId) {
                 foil BOOLEAN NOT NULL,
                 count SMALLINT NOT NULL,
                 location VARCHAR(100)
-              )`
+              );`
         );
     } catch (err) {
         throw err;
@@ -302,9 +301,9 @@ async function getCard(cardName, setCode, token) {
     try {
         conn = await pool.getConnection();
         if (token) {
-            card = await conn.query(`SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}')`);
+            card = await conn.query(`SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`);
         } else {
-            card = await conn.query(`SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}')`);
+            card = await conn.query(`SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`);
         }
         
     } catch (err) {
@@ -318,15 +317,49 @@ async function getCard(cardName, setCode, token) {
 }
 
 async function addCard(userId, uuid, foil, count, location) {
+    let existing = await getCardsInCollection(userId, uuid, foil, location);
+    console.log(existing);
+    if (existing.length === 1) {
+        count = existing[0].count + count;
+    }
+
     let conn;
     try {
         conn = await pool.getConnection();
-        added = await conn.query(`INSERT INTO u${userId} VALUES (?, ?, ?, ?)`, [uuid,  foil, count, location]);
+        if (existing.length === 1) {
+            if (location === null) {
+                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL)`);
+            } else {
+                added = await conn.query(`UPDATE u${userId} SET count=${count} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}')`);
+            }
+        } else {
+            added = await conn.query(`INSERT INTO u${userId} VALUES (?, ?, ?, ?);`, [uuid,  foil, count, location]);
+        }
     } catch (err) {
         throw err;
     } finally {
         if (conn) {
             return conn.end();
+        }
+    }
+}
+
+async function getCardsInCollection(userId, uuid, foil, location) {
+    let conn;
+    let cards;
+    try {
+        conn = await pool.getConnection();
+        if (location === null) {
+            cards = await conn.query(`SELECT * FROM u${userId} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL);`);
+        } else {
+            cards = await conn.query(`SELECT * FROM u${userId} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location='${location}');`);
+        }
+    } catch (err) {
+        throw err;
+    } finally {
+        if (conn) {
+            conn.end();
+            return cards;
         }
     }
 }
