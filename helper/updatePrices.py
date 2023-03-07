@@ -29,22 +29,24 @@ def setPrice(uuid, tcgNormal, tcgFoil, ckNormal, ckFoil):
 
 today = str(date.today())
 logfile = open(f"logs/{today}.log", 'a')
-logfile.write("Getting prices")
+logfile.write("Getting prices\n")
 
 url = 'https://mtgjson.com/api/v5/AllPrices.json'
 prices = requests.get(url)
-logfile.write("Got prices, parsing JSON")
+logfile.write("Got prices, parsing JSON\n")
 allJSON = json.loads(prices.content)
 
 pricesJSON = allJSON['data']
 priceDate = allJSON['meta']['date']
 
-logfile.write("JSON parsed, going through cards")
+logfile.write("JSON parsed, going through cards\n")
 for card in pricesJSON:
     tcgRegular = None
     tcgFoil = None
     ckRegular = None
     ckFoil = None
+    if 'paper' not in pricesJSON[card]:
+        continue
     cardPrices = pricesJSON[card]['paper']
     tcgplayer = cardPrices['tcgplayer']['retail']
     cardkingdom = cardPrices['cardkingdom']['retail']
@@ -58,5 +60,5 @@ for card in pricesJSON:
         ckFoil = float(cardkingdom['foil'][priceDate])
     setPrice(card, tcgRegular, tcgFoil, ckRegular, ckFoil)
 
-logfile.write("Script complete")
+logfile.write("Script complete\n")
 logfile.close()
