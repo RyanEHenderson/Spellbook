@@ -38,18 +38,18 @@ def getLatestDate(priceData):
 today = str(date.today())
 logfile = open(f"logs/{today}.log", 'a')
 logfile.write(f"[{str(datetime.now())}] Getting prices\n")
-print(f"[{str(datetime.now())}] Getting prices\n")
+print(f"[{str(datetime.now())}] Getting prices")
 
 url = 'https://mtgjson.com/api/v5/AllPrices.json'
 prices = requests.get(url)
 logfile.write(f"[{str(datetime.now())}] Got prices, parsing JSON\n")
-print(f"[{str(datetime.now())}] Got prices, parsing JSON\n")
+print(f"[{str(datetime.now())}] Got prices, parsing JSON")
 allJSON = json.loads(prices.content)
 
 pricesJSON = allJSON['data']
 
 logfile.write(f"[{str(datetime.now())}] JSON parsed, going through cards\n")
-print(f"[{str(datetime.now())}] JSON parsed, going through cards\n")
+print(f"[{str(datetime.now())}] JSON parsed, going through cards")
 for card in pricesJSON:
     tcgRegular = None
     tcgFoil = None
@@ -63,7 +63,6 @@ for card in pricesJSON:
         if 'normal' in tcgplayer:
             priceData = tcgplayer['normal']
             priceDate = getLatestDate(priceData)
-            print(priceDate)
             if (priceDate == None):
                 continue
             tcgRegular = float(tcgplayer['normal'][priceDate])
@@ -90,5 +89,5 @@ for card in pricesJSON:
     setPrice(card, tcgRegular, tcgFoil, ckRegular, ckFoil)
 
 logfile.write(f"[{str(datetime.now())}] Script complete\n")
-print(f"[{str(datetime.now())}] Script complete\n")
+print(f"[{str(datetime.now())}] Script complete")
 logfile.close()
