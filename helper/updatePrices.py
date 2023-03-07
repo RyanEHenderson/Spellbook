@@ -2,6 +2,7 @@ import requests
 import json
 import sys
 import mariadb
+from datetime import date
 
 with open('config.json', 'r') as config:
     configData = json.load(config)
@@ -21,22 +22,24 @@ def setPrice(uuid, tcgNormal, tcgFoil, ckNormal, ckFoil):
 
     # Get Cursor
     cur = conn.cursor()
-    cur.execute("SELECT * FROM prices")
-    for obj in cur:
-        print(obj)
-    print(uuid, tcgNormal, tcgFoil, ckNormal, ckFoil)
-    cur.execute("INSERT INTO prices (uuid, tcgnormal, tcgfoil, cknormal, ckfoil) VALUES (?, ?, ?, ?, ?)", (uuid, tcgNormal, tcgFoil, ckNormal, ckFoil))
-    #cur.execute(f"INSERT INTO prices (uuid, tcgnormal, tcgfoil, cknormal, ckfoil) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE SET tcgnormal={tcgNormal}, tcgfoil={tcgFoil}, cknormal={ckNormal}, ckfoil={ckFoil}", (uuid, tcgNormal, tcgFoil, ckNormal, ckFoil))
+    cur.execute(f"INSERT INTO prices (uuid, tcgnormal, tcgfoil, cknormal, ckfoil) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE tcgnormal=?, tcgfoil=?, cknormal=?, ckfoil=?",
+     (uuid, tcgNormal, tcgFoil, ckNormal, ckFoil, tcgNormal, tcgFoil, ckNormal, ckFoil))
+    conn.commit()
     conn.close()
 
-setPrice('00010d56-fe38-5e35-8aed-518019aa36a5', None, 8.23, None, 7.99)
-sys.exit(1)
+today = str(date.today())
+logfile = open(f"logs/{today}.log", 'a')
+logfile.write("Getting prices")
+
 url = 'https://mtgjson.com/api/v5/AllPrices.json'
 prices = requests.get(url)
+logfile.write("Got prices, parsing JSON")
 allJSON = json.loads(prices.content)
-pricesJSON = allJSON['data']
-date = allJSON['meta']['date']
 
+pricesJSON = allJSON['data']
+priceDate = allJSON['meta']['date']
+
+logfile.write("JSON parsed, going through cards")
 for card in pricesJSON:
     tcgRegular = None
     tcgFoil = None
@@ -46,12 +49,14 @@ for card in pricesJSON:
     tcgplayer = cardPrices['tcgplayer']['retail']
     cardkingdom = cardPrices['cardkingdom']['retail']
     if 'normal' in tcgplayer:
-        tcgRegular = float(tcgplayer['normal'][date])
+        tcgRegular = float(tcgplayer['normal'][priceDate])
     if 'foil' in tcgplayer:
-        tcgFoil = float(tcgplayer['foil'][date])
+        tcgFoil = float(tcgplayer['foil'][priceDate])
     if 'normal' in cardkingdom:
-        ckRegular = float(cardkingdom['normal'][date])
+        ckRegular = float(cardkingdom['normal'][priceDate])
     if 'foil' in cardkingdom:
-        ckFoil = float(cardkingdom['foil'][date])
-    print(f"Setting {card}")
+        ckFoil = float(cardkingdom['foil'][priceDate])
     setPrice(card, tcgRegular, tcgFoil, ckRegular, ckFoil)
+
+logfile.write("Script complete")
+logfile.close()
