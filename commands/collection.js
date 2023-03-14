@@ -10,17 +10,29 @@ const mariadb = require('mariadb');
 const {
     dbAddress,
     dbPort,
-    dbUser,
-    dbPassword,
-    dbDatabase
+    userCollectionUsername,
+    userCollectionPassword,
+    userCollectionDatabase,
+    dataUsername,
+    dataPassword,
+    dataDatabase
 } = require('../config.json');
 
-const pool = mariadb.createPool({
+const collectionPool = mariadb.createPool({
     host: dbAddress,
     port: dbPort,
-    user: dbUser,
-    password: dbPassword,
-    database: dbDatabase,
+    user: userCollectionUsername,
+    password: userCollectionPassword,
+    database: userCollectionDatabase,
+    connectionLimit: 5
+});
+
+const dataPool = mariadb.createPool({
+    host: dbAddress,
+    port: dbPort,
+    user: dataUsername,
+    password: dataPassword,
+    database: dataDatabase,
     connectionLimit: 5
 });
 
@@ -196,7 +208,13 @@ module.exports = {
         const user = interaction.user;
         await interaction.deferReply({ ephemeral: true });
 
-        const tableExists = await hasTable(user.id);
+        if (group === 'card') {
+            if (subcommand === 'add') {
+                addCardToCollection(interaction);
+            }
+        }
+
+        const tableExists = await hasCollection(user.id);
         if (group === 'card') {
             if (!tableExists) {
                 interaction.editReply(
@@ -217,7 +235,7 @@ module.exports = {
 
             if (subcommand === 'add' || subcommand === 'remove') {
                 const location = interaction.options.getString('location');
-                getCard(cardName, cardSet, isToken)
+                getCardFromDB(cardName, cardSet, isToken)
                     .then((cards) => {
                         if (cards.length === 0) {
                             interaction.editReply(
@@ -240,7 +258,7 @@ module.exports = {
                                 );
                             } else {
                                 if (subcommand === 'add') {
-                                    addCard(
+                                    addCardToCollection(
                                         user.id,
                                         card.uuid,
                                         isFoil,
@@ -278,7 +296,7 @@ module.exports = {
                                                         `You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`
                                                     );
                                                 } else {
-                                                    removeCard(
+                                                    removeCardFromCollection(
                                                         user.id,
                                                         card.uuid,
                                                         isFoil,
@@ -317,7 +335,7 @@ module.exports = {
                         'You already have an existing collection'
                     );
                 } else {
-                    createTable(user.id)
+                    createCollectionTable(user.id)
                         .then(() => {
                             interaction.editReply(
                                 'Your collection has been created'
@@ -364,11 +382,13 @@ module.exports = {
     }
 };
 
-async function hasTable(userId) {
+async function addCardToCollection(interaction) {}
+
+async function hasCollection(userId) {
     let conn;
     let exists;
     try {
-        conn = await pool.getConnection();
+        conn = await collectionPool.getConnection();
         const tables = await conn.query(`SHOW TABLES LIKE 'u${userId}';`);
 
         if (tables.length === 0) {
@@ -388,10 +408,10 @@ async function hasTable(userId) {
 
 // Each user's collection only needs the card UUID and then data not stored in the mtgjson data
 // All other information about the card will be dynamically pulled from mtgjson database
-async function createTable(userId) {
+async function createCollectionTable(userId) {
     let conn;
     try {
-        conn = await pool.getConnection();
+        conn = await collectionPool.getConnection();
         const newTable = await conn.query(
             `CREATE TABLE IF NOT EXISTS u${userId} (
                 uuid CHAR(36) NOT NULL,
@@ -409,11 +429,11 @@ async function createTable(userId) {
     }
 }
 
-async function getCard(cardName, setCode, token) {
+async function getCardFromDB(cardName, setCode, token) {
     let conn;
     let card;
     try {
-        conn = await pool.getConnection();
+        conn = await dataPool.getConnection();
         if (token) {
             card = await conn.query(
                 `SELECT * FROM tokens WHERE (name='${cardName}') AND (setCode='${setCode}');`
@@ -433,7 +453,7 @@ async function getCard(cardName, setCode, token) {
     }
 }
 
-async function addCard(userId, uuid, foil, count, location) {
+async function addCardToCollection(userId, uuid, foil, count, location) {
     let existing = await getCardsInCollection(userId, uuid, foil, location);
     if (existing.length === 1) {
         count = existing[0].count + count;
@@ -441,7 +461,7 @@ async function addCard(userId, uuid, foil, count, location) {
 
     let conn;
     try {
-        conn = await pool.getConnection();
+        conn = await collectionPool.getConnection();
         if (existing.length === 1) {
             if (location === null) {
                 added = await conn.query(
@@ -467,10 +487,17 @@ async function addCard(userId, uuid, foil, count, location) {
     }
 }
 
-async function removeCard(userId, uuid, foil, existingCount, count, location) {
+async function removeCardFromCollection(
+    userId,
+    uuid,
+    foil,
+    existingCount,
+    count,
+    location
+) {
     let conn;
     try {
-        conn = await pool.getConnection();
+        conn = await collectionPool.getConnection();
         if (existingCount === count) {
             if (location === null) {
                 removed = await conn.query(
@@ -509,7 +536,7 @@ async function getCardsInCollection(userId, uuid, foil, location) {
     let conn;
     let cards;
     try {
-        conn = await pool.getConnection();
+        conn = await collectionPool.getConnection();
         if (location === null) {
             cards = await conn.query(
                 `SELECT * FROM u${userId} WHERE (uuid='${uuid}') AND (foil=${foil}) AND (location IS NULL);`
