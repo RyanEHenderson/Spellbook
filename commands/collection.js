@@ -10,28 +10,28 @@ const mariadb = require('mariadb');
 const {
     dbAddress,
     dbPort,
-    userCollectionUsername,
-    userCollectionPassword,
+    dbUsername,
+    dbPassword,
     userCollectionDatabase,
-    dataUsername,
-    dataPassword,
     dataDatabase
 } = require('../config.json');
 
+/*
 const collectionPool = mariadb.createPool({
     host: dbAddress,
     port: dbPort,
-    user: userCollectionUsername,
-    password: userCollectionPassword,
+    user: dbUsername,
+    password: dbPassword,
     database: userCollectionDatabase,
     connectionLimit: 5
 });
+*/
 
 const dataPool = mariadb.createPool({
     host: dbAddress,
     port: dbPort,
-    user: dataUsername,
-    password: dataPassword,
+    user: dbUsername,
+    password: dbPassword,
     database: dataDatabase,
     connectionLimit: 5
 });
@@ -210,17 +210,13 @@ module.exports = {
 
         if (group === 'card') {
             if (subcommand === 'add') {
-                addCardToCollection(interaction);
+                addCardToCollectionDB(interaction);
             }
         }
 
         const tableExists = await hasCollection(user.id);
         if (group === 'card') {
             if (!tableExists) {
-                interaction.editReply(
-                    'You do not have a collection started. Run `/collection init` to start one'
-                );
-                return;
             }
             const cardName = interaction.options.getString('name');
             const cardSet = interaction.options.getString('set');
@@ -234,14 +230,9 @@ module.exports = {
                     : interaction.options.getInteger('count');
 
             if (subcommand === 'add' || subcommand === 'remove') {
-                const location = interaction.options.getString('location');
-                getCardFromDB(cardName, cardSet, isToken)
+                getCardsFromDB(cardName, cardSet, isToken)
                     .then((cards) => {
                         if (cards.length === 0) {
-                            interaction.editReply(
-                                `Could not find a card with name \`${cardName}\` in set \`${cardSet}\``
-                            );
-                            return;
                         }
                         if (cards.length === 1) {
                             const card = cards[0];
@@ -258,7 +249,7 @@ module.exports = {
                                 );
                             } else {
                                 if (subcommand === 'add') {
-                                    addCardToCollection(
+                                    addCardToCollectionDB(
                                         user.id,
                                         card.uuid,
                                         isFoil,
@@ -382,8 +373,117 @@ module.exports = {
     }
 };
 
-async function addCardToCollection(interaction) {}
+// Handles the '/collection card add' command
+async function sr(interaction) {
+    const user = interaction.user;
+    const tableExists = await hasCollection(user.id);
 
+    // Make sure the user has a collection
+    if (!tableExists) {
+        interaction.editReply(
+            'You do not have a collection started. Run `/collection init` to start one'
+        );
+        return;
+    }
+
+    // Get command arguments
+    const cardName = interaction.options.getString('name');
+    const cardSet = interaction.options.getString('set');
+    const isToken =
+        interaction.options.getBoolean('token') === true ? true : false;
+    const isFoil =
+        interaction.options.getBoolean('foil') === true ? true : false;
+    const count =
+        interaction.options.getInteger('count') === null
+            ? 1
+            : interaction.options.getInteger('count');
+    const location = interaction.options.getString('location');
+
+    // Get a list of cards in cardSet matching cardName
+    const cards = getCardsFromDB(cardName, cardSet, isToken);
+    // Check if empty response
+    if (cards.length === 0) {
+        interaction.editReply(
+            `Could not find a card with name \`${cardName}\` in set \`${cardSet}\``
+        );
+        return;
+    }
+
+    // Exactly 1 response, try to add it
+    if (cards.length === 1) {
+        const card = cards[0];
+        // Name provided and name in DB don't match
+        // Example: user provided "Kalitas", but the card was "Kalitas, Traitor of Ghet"
+        if (card.name !== cardName) {
+            interaction.editReply(
+                `Could not find card with name \`${cardName}\`, but found \`${card.name}\``
+            );
+            return;
+        }
+        // Check if the card has an existing foil version if foil was selected
+        if (!card.hasFoil && isFoil) {
+            interaction.editReply(
+                'Foil card was selected, but this card does not have a foil version'
+            );
+            return;
+        }
+        // Check if the card has a non-foil version if foil not selected
+        if (!card.hasNonFoil && !isFoil) {
+            interaction.editReply(
+                'Non-foil card was selected, but this card only exists in foil'
+            );
+            return;
+        }
+        // Checks passed, add the card to the database
+        addCardToCollectionDB(user.id, card.uuid, isFoil, count, location)
+            .then(() => {
+                interaction.editReply('Card added');
+            })
+            .catch((err) => {
+                interaction.editReply('An error occured');
+                console.log(err);
+            });
+        return;
+    }
+
+    // Multiple cards in the response, a bit complicated to handle
+
+    // Get a list of cards with an exact match name
+    const nameMatch = cards.filter((card) => card.name === cardName);
+    // If there are no exact matches, just list the matches
+    if (nameMatch.length === 0) {
+        let nameStr;
+        // Build a string list of the partial matches
+        cards.forEach((card) => {
+            nameStr += `\`${card.name}\`, `;
+        });
+        nameStr.substring(0, nameStr.length - 2);
+        interaction.editReply(`No exact matches found, found ${nameStr}`);
+        return;
+    }
+
+    const diffs = getDifferences(nameMatch);
+    console.log(diffs);
+    interaction.editReply('doot');
+}
+
+// Finds every difference in the database among a list of cards
+function getDifferences(cards) {
+    let diffs = [];
+    for (let i = 0; i < cards.length; i++) {
+        diffs[i] = {};
+        for (let j = 1; j < cards.length; j++) {
+            for (const key in cards.keys()) {
+                if (cards[i][key] !== cards[j][key]) {
+                    diffs[i][key] = cards[i][key];
+                }
+            }
+        }
+    }
+    return diffs;
+}
+
+// Checks if a collection table exists for userId
 async function hasCollection(userId) {
     let conn;
     let exists;
@@ -406,6 +506,7 @@ async function hasCollection(userId) {
     }
 }
 
+// Creates a collection table for userId
 // Each user's collection only needs the card UUID and then data not stored in the mtgjson data
 // All other information about the card will be dynamically pulled from mtgjson database
 async function createCollectionTable(userId) {
@@ -429,18 +530,19 @@ async function createCollectionTable(userId) {
     }
 }
 
-async function getCardFromDB(cardName, setCode, token) {
+// Gets card matches from the mtgjson data
+async function getCardsFromDB(cardName, setCode, token) {
     let conn;
     let card;
     try {
         conn = await dataPool.getConnection();
         if (token) {
             card = await conn.query(
-                `SELECT * FROM tokens WHERE (name='${cardName}') AND (setCode='${setCode}');`
+                `SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         } else {
             card = await conn.query(
-                `SELECT * FROM cards WHERE (name='${cardName}') AND (setCode='${setCode}');`
+                `SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         }
     } catch (err) {
@@ -453,7 +555,8 @@ async function getCardFromDB(cardName, setCode, token) {
     }
 }
 
-async function addCardToCollection(userId, uuid, foil, count, location) {
+// Puts count cards into userId's collection
+async function addCardToCollectionDB(userId, uuid, foil, count, location) {
     let existing = await getCardsInCollection(userId, uuid, foil, location);
     if (existing.length === 1) {
         count = existing[0].count + count;
@@ -487,6 +590,7 @@ async function addCardToCollection(userId, uuid, foil, count, location) {
     }
 }
 
+// Removes count cards from userId's collection
 async function removeCardFromCollection(
     userId,
     uuid,
@@ -532,6 +636,7 @@ async function removeCardFromCollection(
     }
 }
 
+// Gets cards in userId's collection matching params
 async function getCardsInCollection(userId, uuid, foil, location) {
     let conn;
     let cards;
@@ -556,6 +661,7 @@ async function getCardsInCollection(userId, uuid, foil, location) {
     }
 }
 
+// Creates buttons for confirm or cancel
 function createConfirmationButtons(userId) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -570,6 +676,7 @@ function createConfirmationButtons(userId) {
     return row;
 }
 
+// Creates an embed with a delete confirmation message
 function createDeleteEmbed() {
     const embed = new EmbedBuilder()
         .setTitle('Are you sure?')
@@ -579,6 +686,7 @@ function createDeleteEmbed() {
     return embed;
 }
 
+// Creates disabled confirm or cancel buttons
 function createDisabledConfirmationButtons(userId) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -595,6 +703,7 @@ function createDisabledConfirmationButtons(userId) {
     return row;
 }
 
+// Creates an embed for a timed out collection deletion
 function createTimeoutDeleteEmbed() {
     const embed = new EmbedBuilder()
         .setTitle('Deletion timed out')
